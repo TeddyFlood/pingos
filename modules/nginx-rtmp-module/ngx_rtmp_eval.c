@@ -1,4 +1,3 @@
-
 /*
  * Copyright (C) Roman Arutyunyan
  */
@@ -23,8 +22,15 @@ static void
 ngx_rtmp_eval_connection_str(void *ctx, ngx_rtmp_eval_t *e, ngx_str_t *ret)
 {
     ngx_rtmp_session_t  *s = ctx;
-
     *ret = *(ngx_str_t *) ((u_char *) s->connection + e->offset);
+}
+
+static void
+ngx_rtmp_eval_pargs_str(void *ctx, ngx_rtmp_eval_t *e, ngx_str_t *ret)
+{
+    ngx_rtmp_session_t  *s = ctx;
+
+    *ret = *(ngx_str_t *) ((u_char *) s + e->offset);
 }
 
 
@@ -53,6 +59,10 @@ ngx_rtmp_eval_t ngx_rtmp_eval_session[] = {
     { ngx_string("addr"),
       ngx_rtmp_eval_connection_str,
       offsetof(ngx_connection_t, addr_text) },
+
+    { ngx_string("pargs"),
+      ngx_rtmp_eval_pargs_str,
+      offsetof(ngx_rtmp_session_t, pargs) },
 
     ngx_rtmp_null_eval
 };
@@ -87,6 +97,7 @@ ngx_rtmp_eval_append_var(void *ctx, ngx_buf_t *b, ngx_rtmp_eval_t **e,
     ngx_uint_t          k;
     ngx_str_t           v;
     ngx_rtmp_eval_t    *ee;
+    int keep = 1;
 
     for (; *e; ++e) {
         for (k = 0, ee = *e; ee->handler; ++k, ++ee) {
@@ -95,8 +106,14 @@ ngx_rtmp_eval_append_var(void *ctx, ngx_buf_t *b, ngx_rtmp_eval_t **e,
             {
                 ee->handler(ctx, ee, &v);
                 ngx_rtmp_eval_append(b, v.data, v.len, log);
+                keep = 0;
             }
         }
+    }
+    if(keep == 1){
+        u_char prefix = '$';
+        ngx_rtmp_eval_append(b, &prefix, 1, log);
+        ngx_rtmp_eval_append(b, name->data, name->len, log);
     }
 }
 
@@ -105,6 +122,7 @@ ngx_int_t
 ngx_rtmp_eval(void *ctx, ngx_str_t *in, ngx_rtmp_eval_t **e, ngx_str_t *out,
     ngx_log_t *log)
 {
+
     u_char      c, *p;
     ngx_str_t   name;
     ngx_buf_t   b;
